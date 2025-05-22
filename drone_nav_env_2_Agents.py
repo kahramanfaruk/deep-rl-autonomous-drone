@@ -2,7 +2,7 @@ import pygame
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import os
+import random
 
 class DroneNavigationEnv(gym.Env):
     """Custom Gym environment for drone navigation over terrain with full image support."""
@@ -18,22 +18,28 @@ class DroneNavigationEnv(gym.Env):
         # Set a fixed random seed for reproducibility
         self.fixed_seed = fixed_seed
         np.random.seed(self.fixed_seed)  # This will make np.random.choice deterministic
+        random.seed(self.fixed_seed)
         
-        # Generate terrain (1=valley, 0=mountain) with a fixed seed
-        self.terrain = np.random.choice([0, 1], size=self.grid_size, p=[0.3, 0.7])
-
         # Positions (using numpy arrays for easy manipulation)
-        self.start_pos = np.array([0, 0])  # (row, column)
-        self.goal_pos = np.array([grid_size[0]-1, grid_size[1]-1])  # (row, column)
-        self.agent_pos = self.start_pos.copy()
+        self.start_pos_1 = np.array([0, 0])  # First agent position (top-left)
+        self.start_pos_2 = np.array([2, 2])  # Second agent position (2, 2)
+
+        # Fixed goal position at (5, 5)
+        self.goal_pos = np.array([5, 5])
+
+        self.agent_pos_1 = self.start_pos_1.copy()
+        self.agent_pos_2 = self.start_pos_2.copy()
         
-        print(f"Start: {self.start_pos}, Goal: {self.goal_pos}")
+        print(f"Start: {self.start_pos_1}, {self.start_pos_2}, Goal (Fire): {self.goal_pos}")
         
+        # Generate terrain after agent positions are set
+        self.generate_terrain()
+
         # Gym spaces
         self.action_space = spaces.Discrete(4)  # 0:left, 1:right, 2:up, 3:down
         self.observation_space = spaces.Box(
-            low=np.array([0, 0]),
-            high=np.array([grid_size[0]-1, grid_size[1]-1]),
+            low=np.array([0, 0, 0, 0]),
+            high=np.array([grid_size[0]-1, grid_size[1]-1, grid_size[0]-1, grid_size[1]-1]),
             dtype=np.int32
         )
         
@@ -45,10 +51,50 @@ class DroneNavigationEnv(gym.Env):
         
         # Load all four images with error handling
         self.load_images()
+
+    def generate_terrain(self):
+        """Generate terrain with a clear path of valleys (1) from start to goal."""
+        # Initialize terrain with all mountains (0)
+        self.terrain = np.zeros(self.grid_size, dtype=int)
         
-        # Colors
-        self.goal_color = (255, 0, 0)  # Red for goal indication
-    
+        # Create a valley path from start to goal
+        self.create_valley_path(self.start_pos_1, self.goal_pos)
+        
+        # Optionally, randomly scatter some mountains and valleys (but make it deterministic)
+        self.add_random_terrain()
+
+    def create_valley_path(self, start, goal):
+        """Create a clear path of valleys from the start position to the goal."""
+        # Use a simple greedy algorithm to create a path from start to goal
+        current_pos = start.copy()
+        path = [current_pos]
+
+        while not np.array_equal(current_pos, goal):
+            possible_moves = []
+            
+            # Look at the neighboring cells (right, down, up, left)
+            for direction in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
+                new_pos = current_pos + direction
+                if 0 <= new_pos[0] < self.grid_size[0] and 0 <= new_pos[1] < self.grid_size[1]:
+                    possible_moves.append(new_pos)
+            
+            # Move to the next position that brings us closer to the goal (greedy approach)
+            current_pos = min(possible_moves, key=lambda x: np.linalg.norm(x - goal))
+            path.append(current_pos)
+
+        # Set the terrain to valley (1) along the path
+        for pos in path:
+            self.terrain[pos[0], pos[1]] = 1
+
+    def add_random_terrain(self):
+        """Randomly scatter mountains and valleys on the remaining grid."""
+        for row in range(self.grid_size[0]):
+            for col in range(self.grid_size[1]):
+                if self.terrain[row, col] == 0:  # Only modify the mountain cells
+                    # Randomly place some valleys in the remaining mountain area
+                    if random.random() < 0.2:  # 20% chance of creating a valley
+                        self.terrain[row, col] = 1
+
     def load_images(self):
         """Load and scale all four images needed for rendering."""
         try:
@@ -98,68 +144,55 @@ class DroneNavigationEnv(gym.Env):
         
         # Reset terrain with the same fixed seed (if you want to re-use it on every reset)
         np.random.seed(self.fixed_seed)
-        self.terrain = np.random.choice([0, 1], size=self.grid_size, p=[0.3, 0.7])
+        random.seed(self.fixed_seed)
+        self.generate_terrain()
         
-        self.agent_pos = self.start_pos.copy()
-        return self.agent_pos.copy(), {}
+        self.agent_pos_1 = self.start_pos_1.copy()
+        self.agent_pos_2 = self.start_pos_2.copy()
+        
+        print(f"Reset: Goal Position: {self.goal_pos}")
+        
+        return np.concatenate([self.agent_pos_1, self.agent_pos_2]), {}
     
     def step(self, action):
         """Execute one time step within the environment."""
-        new_pos = self.agent_pos.copy()
-        
-        # Action mapping:
-        # 0: left (column - 1)
-        # 1: right (column + 1)
-        # 2: up (row - 1)
-        # 3: down (row + 1)
-        
+        new_pos_2 = self.agent_pos_2.copy()
+
+        # Action mapping for agent 2 (second agent only)
         if action == 0:  # Left
-            new_pos[1] = max(0, new_pos[1] - 1)
+            new_pos_2[1] -= 1
         elif action == 1:  # Right
-            new_pos[1] = min(self.grid_size[1] - 1, new_pos[1] + 1)
+            new_pos_2[1] += 1
         elif action == 2:  # Up
-            new_pos[0] = max(0, new_pos[0] - 1)
+            new_pos_2[0] -= 1
         elif action == 3:  # Down
-            new_pos[0] = min(self.grid_size[0] - 1, new_pos[0] + 1)
+            new_pos_2[0] += 1
+
+        # Restrict agent 2 to move within the 2-5 range for both rows and columns
+        new_pos_2[0] = np.clip(new_pos_2[0], 2, 5)  # Rows 2-5
+        new_pos_2[1] = np.clip(new_pos_2[1], 2, 5)  # Columns 2-5
+
+        # Check if new position for agent 2 is valid (1 = valley/flat terrain)
+        if self.terrain[new_pos_2[0], new_pos_2[1]] == 1:
+            self.agent_pos_2 = new_pos_2
         
-        # Check if new position is valid (1 = valley/flat terrain)
-        if self.terrain[new_pos[0], new_pos[1]] == 1:
-            # Animate movement if position changed
-            if not np.array_equal(new_pos, self.agent_pos):
-                self.animate_agent_move(self.agent_pos, new_pos)
-            self.agent_pos = new_pos
-        
-        # Calculate reward and done status
-        done = np.array_equal(self.agent_pos, self.goal_pos)
+        # Check if agent 2 has reached the goal (fire)
+        done = np.array_equal(self.agent_pos_2, self.goal_pos)
         reward = 10.0 if done else -0.1
         info = {
-            "distance_to_goal": np.linalg.norm(self.goal_pos - self.agent_pos),
-            "position": self.agent_pos.copy()
+            "distance_to_goal_2": np.linalg.norm(self.goal_pos - self.agent_pos_2),
+            "position_2": self.agent_pos_2.copy()
         }
         
-        return self.agent_pos.copy(), reward, done, False, info
+        return np.concatenate([self.agent_pos_1, self.agent_pos_2]), reward, done, False, info
     
-    def animate_agent_move(self, start_pos, end_pos, duration=0.2, steps=10):
-        """Animate smooth movement between positions."""
-        start_row, start_col = start_pos
-        end_row, end_col = end_pos
-        
-        for step in range(1, steps + 1):
-            t = step / steps
-            current_row = start_row + (end_row - start_row) * t
-            current_col = start_col + (end_col - start_col) * t
-            
-            # Redraw everything
-            self.render_frame(current_row, current_col)
-            
-            pygame.display.flip()
-            self.clock.tick(1 / (duration / steps))
-    
-    def render_frame(self, drone_row=None, drone_col=None):
+    def render_frame(self, drone_row_1=None, drone_col_1=None, drone_row_2=None, drone_col_2=None):
         """Render a single frame of the environment."""
-        # Use current position if none provided
-        if drone_row is None or drone_col is None:
-            drone_row, drone_col = self.agent_pos
+        # Use current positions if none provided
+        if drone_row_1 is None or drone_col_1 is None:
+            drone_row_1, drone_col_1 = self.agent_pos_1
+        if drone_row_2 is None or drone_col_2 is None:
+            drone_row_2, drone_col_2 = self.agent_pos_2
         
         # Draw terrain
         for row in range(self.grid_size[0]):
@@ -168,34 +201,23 @@ class DroneNavigationEnv(gym.Env):
                 img = self.valley_img if terrain_type == 1 else self.mountain_img
                 self.screen.blit(img, (col * self.cell_size, row * self.cell_size))
         
-        # Draw goal (red rectangle)
-        goal_row, goal_col = self.goal_pos
+        # Draw goal (red rectangle) for fire position
+        fire_row, fire_col = self.goal_pos
         pygame.draw.rect(
             self.screen, 
-            self.goal_color,
-            pygame.Rect(
-                goal_col * self.cell_size, 
-                goal_row * self.cell_size, 
-                self.cell_size, 
-                self.cell_size
-            ),
-            width=5
+            (255, 0, 0), 
+            pygame.Rect(fire_col * self.cell_size, fire_row * self.cell_size, self.cell_size, self.cell_size)
         )
         
-        # Draw drone
-        drone_x = drone_col * self.cell_size + 10  # +10 for centering
-        drone_y = drone_row * self.cell_size + 10
-        self.screen.blit(self.drone_img, (drone_x, drone_y))
+        # Draw drones
+        self.screen.blit(self.drone_img, (drone_col_1 * self.cell_size + 10, drone_row_1 * self.cell_size + 10))
+        self.screen.blit(self.drone_img, (drone_col_2 * self.cell_size + 10, drone_row_2 * self.cell_size + 10))
         
-        # Draw corner image (fire.png with red border)
-        self.screen.blit(
-            self.corner_img,
-            (self.window_size[0] - 100, self.window_size[1] - 100)
-        )
+        # Draw fire at goal position
+        self.screen.blit(self.corner_img, (fire_col * self.cell_size, fire_row * self.cell_size))
         
-        # Update display
         pygame.display.flip()
-    
+
     def render(self):
         """Render the current state (alias for render_frame)."""
         self.render_frame()
@@ -204,14 +226,14 @@ class DroneNavigationEnv(gym.Env):
         """Close the environment and cleanup."""
         pygame.quit()
 
-# TODO: Add a new drone agent (helper agent) which detects the fire and then transfers the location (goal position) to the main agent
+# Main loop to run the environment
 if __name__ == "__main__":
     # Initialize environment
     pygame.init()
     info = pygame.display.Info()
     screen_height = info.current_h
     
-    grid_size = (5, 5)  # rows, columns
+    grid_size = (6, 6)  # rows, columns
     cell_size = min(100, int(screen_height * 0.8 / grid_size[0]))
     
     env = DroneNavigationEnv(grid_size=grid_size, cell_size=cell_size)
@@ -226,7 +248,7 @@ if __name__ == "__main__":
             if event.type == pygame.QUIT:
                 running = False
         
-        # Take random actions
+        # Take random actions for the second agent (first agent stays stationary)
         action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
         
