@@ -53,12 +53,12 @@ class DroneNavigationEnv(gym.Env):
         """Load and scale all four images needed for rendering."""
         try:
             # Base terrain images
-            self.mountain_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/mountain_2.png")
-            self.valley_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/flat_terrain.png")
+            self.mountain_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/mountain_2.png")
+            self.valley_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/flat_terrain.png")
             
             # Special images
-            self.corner_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/fire.png")
-            self.drone_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/drone_3.png")
+            self.corner_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/fire.png")
+            self.drone_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/drone_3.png")
             
             # Scale images to cell size
             self.mountain_img = pygame.transform.scale(self.mountain_img, (self.cell_size, self.cell_size))
@@ -122,24 +122,31 @@ class DroneNavigationEnv(gym.Env):
         elif action == 3:  # Down
             new_pos[0] = min(self.grid_size[0] - 1, new_pos[0] + 1)
         
-        # Check if new position is valid (1 = valley/flat terrain)
-        if self.terrain[new_pos[0], new_pos[1]] == 1:
-            # Animate movement if position changed
-            if not np.array_equal(new_pos, self.agent_pos):
-                self.animate_agent_move(self.agent_pos, new_pos)
-            self.agent_pos = new_pos
+        # Always allow movement, but give different rewards based on terrain
+        if not np.array_equal(new_pos, self.agent_pos):
+            self.animate_agent_move(self.agent_pos, new_pos)
+        self.agent_pos = new_pos
         
-        # Calculate reward and done status
+        # Calculate reward based on terrain type
+        terrain_type = self.terrain[new_pos[0], new_pos[1]]
         done = np.array_equal(self.agent_pos, self.goal_pos)
-        reward = 10.0 if done else -0.1
+        
+        if done:
+            reward = 10.0  # Large reward for reaching goal
+        elif terrain_type == 0:  # Mountain
+            reward = -1.0  # Higher penalty for being on mountain
+        else:  # Valley
+            reward = -0.1  # Small penalty for normal movement
+        
         info = {
             "distance_to_goal": np.linalg.norm(self.goal_pos - self.agent_pos),
-            "position": self.agent_pos.copy()
+            "position": self.agent_pos.copy(),
+            "terrain": "mountain" if terrain_type == 0 else "valley"
         }
         
         return self.agent_pos.copy(), reward, done, False, info
     
-    def animate_agent_move(self, start_pos, end_pos, duration=0.2, steps=10):
+    def animate_agent_move(self, start_pos, end_pos, duration=0.2, steps=1):
         """Animate smooth movement between positions."""
         start_row, start_col = start_pos
         end_row, end_col = end_pos
@@ -153,7 +160,8 @@ class DroneNavigationEnv(gym.Env):
             self.render_frame(current_row, current_col)
             
             pygame.display.flip()
-            self.clock.tick(1 / (duration / steps))
+            #self.clock.tick(1 / (duration / steps))
+            self.clock.tick(30)  # Increase from 1/(duration/steps) to 30 FPS
     
     def render_frame(self, drone_row=None, drone_col=None):
         """Render a single frame of the environment."""
