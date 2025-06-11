@@ -11,7 +11,7 @@ gamma = 0.95                # Gamma: discount factor
 epsilon = 1.0               # Initial exploration rate
 epsilon_min = 0.1           # Minimum exploration
 epsilon_decay = 0.995       # Epsilon decay rate
-no_episodes = 500           # Number of episodes to train
+no_episodes = 50           # Number of episodes to train
 
 # --- Environment Setup ---
 grid_size = (5, 5)
@@ -19,10 +19,14 @@ cell_size = 100
 random_seed = 42
 goal_coordinates = (grid_size[0] - 1, grid_size[1] - 1)  # Bottom-right corner
 
+# All hell_state_coordonates: [(1,0), (2, 0), (3, 0), (1, 1), (4, 1), (4, 2), (2, 3), (0, 4), (2, 4), (3, 4)]
+
 # --- Execute Training & Visualization ---
 if train:
     # Initialize the environment
-    env = DroneNavigationEnv(grid_size=grid_size, cell_size=cell_size, fixed_seed=random_seed)
+    env = DroneNavigationEnv(grid_size=grid_size, 
+                             cell_size=cell_size, 
+                             fixed_seed=random_seed)
 
     # Train Q-learning agent
     train_q_learning(env=env,

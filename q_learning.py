@@ -81,8 +81,8 @@ def train_q_learning(env, no_episodes, epsilon, epsilon_min, epsilon_decay, alph
     np.save(q_table_save_path, q_table)
     print(f"Training complete. Q-table saved to '{q_table_save_path}'.")
 
-
-def visualize_q_table(hell_state_coordinates=[(2, 1), (0, 4)],
+# All hell_state_coordonates: [(1,0), (2, 0), (3, 0), (1, 1), (4, 1), (4, 2), (2, 3), (0, 4), (2, 4), (3, 4)]
+def visualize_q_table(hell_state_coordinates=[(1,0), (2, 0)],
                       goal_coordinates=(4, 4),
                       actions=["Up", "Down", "Right", "Left"],
                       q_values_path="q_table.npy"):
