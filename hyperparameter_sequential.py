@@ -4,7 +4,7 @@ import csv
 import os
 import itertools
 
-def hyperparameter_search(param_grid, env_factory, episodes=500, trials_per_combination=3, early_stop_q_sum=None):
+def hyperparameter_search_sequential(param_grid, env_factory, episodes=500, trials_per_combination=3, early_stop_q_sum=None):
     """
     Performs a grid search with finer resolution, epsilon_decay sweep,
     multiple trials per combination, and optional early stopping.
@@ -27,7 +27,7 @@ def hyperparameter_search(param_grid, env_factory, episodes=500, trials_per_comb
     results : list of dict
         Each dict includes hyperparameters and average q_sum.
     """
-    from q_learning import train_q_learning
+    from drone_q_learning import train_q_learning
 
     keys = list(param_grid.keys())
     combinations = list(itertools.product(*(param_grid[key] for key in keys)))

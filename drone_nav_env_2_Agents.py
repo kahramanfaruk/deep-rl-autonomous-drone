@@ -99,13 +99,14 @@ class DroneNavigationEnv(gym.Env):
         """Load and scale all four images needed for rendering."""
         try:
             # Base terrain images
-            self.mountain_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/mountain_2.png")
-            self.valley_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/flat_terrain.png")
+            self.mountain_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/mountain_2.png")
+            self.valley_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/flat_terrain.png")
             
             # Special images
-            self.corner_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/fire.png")
-            self.drone_img = pygame.image.load("/home/faruk/Desktop/DRL_AutonomousDrone/env_images/drone_3.png")
+            self.corner_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/fire.png")
+            self.drone_img = pygame.image.load("/home/faruk/Desktop/HDD_Projects/DRL_AutonomousDrone/env_images/drone_3.png")
             
+
             # Scale images to cell size
             self.mountain_img = pygame.transform.scale(self.mountain_img, (self.cell_size, self.cell_size))
             self.valley_img = pygame.transform.scale(self.valley_img, (self.cell_size, self.cell_size))
